@@ -14,19 +14,21 @@ export const createFormSchema = z.object({
     title: z.string().min(1, 'Title cannot be empty'),
     description: z.string().optional().nullable(),
     blocks: z.array(formBlockSchema).optional().nullable(),
+    customUrl: z.string().regex(/^[a-zA-Z0-9-]+$/, 'Custom URL can only contain letters, numbers, and hyphens').min(3).optional().nullable(),
   }),
 });
 
 // Schema for the body when creating a new form version (updating a form)
 export const createNewFormVersionSchema = z.object({
   params: z.object({
-    formId: z.string().cuid({ message: 'Invalid form ID' }),
+    identifier: z.string(),
   }),
   body: z.object({
     title: z.string().min(1, 'Title cannot be empty'),
     description: z.string().optional().nullable(),
     blocks: z.array(formBlockSchema),
     published: z.boolean().optional(),
+    customUrl: z.string().regex(/^[a-zA-Z0-9-]+$/, 'Custom URL can only contain letters, numbers, and hyphens').min(3).optional().nullable(),
     submissionsPerIp: z.number().int().positive().optional().nullable(),
     aiEnabled: z.boolean().optional(),
     aiPrompt: z.string().optional().nullable(),
@@ -38,7 +40,7 @@ export const createNewFormVersionSchema = z.object({
 // Schema for publishing a specific form version
 export const publishFormVersionSchema = z.object({
     params: z.object({
-        formId: z.string().cuid({ message: 'Invalid form ID' }),
+        identifier: z.string(),
     }),
     body: z.object({
         version: z.number().int().positive({ message: 'Version must be a positive integer' }),
@@ -46,10 +48,10 @@ export const publishFormVersionSchema = z.object({
     })
 });
 
-// Schema for generic requests that only need a formId
-export const formIdParamsSchema = z.object({
+// Schema for generic requests that only need a formId or customUrl
+export const formIdentifierParamsSchema = z.object({
   params: z.object({
-    formId: z.string().cuid({ message: 'Invalid form ID' }),
+    identifier: z.string(), // This can be a CUID or a custom URL string
   }),
 });
 

@@ -35,6 +35,7 @@ model Form {
   author        User     @relation(fields: [authorId], references: [id])
   authorId      String
   latestVersion Int      @default(1)
+  customUrl     String?  @unique
 
   versions    FormVersion[]
   submissions Submission[] // Relation to all submissions for this form

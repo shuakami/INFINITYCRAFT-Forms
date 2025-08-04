@@ -2501,6 +2501,7 @@ export namespace Prisma {
     updatedAt: Date | null
     authorId: string | null
     latestVersion: number | null
+    customUrl: string | null
   }
 
   export type FormMaxAggregateOutputType = {
@@ -2509,6 +2510,7 @@ export namespace Prisma {
     updatedAt: Date | null
     authorId: string | null
     latestVersion: number | null
+    customUrl: string | null
   }
 
   export type FormCountAggregateOutputType = {
@@ -2517,6 +2519,7 @@ export namespace Prisma {
     updatedAt: number
     authorId: number
     latestVersion: number
+    customUrl: number
     _all: number
   }
 
@@ -2535,6 +2538,7 @@ export namespace Prisma {
     updatedAt?: true
     authorId?: true
     latestVersion?: true
+    customUrl?: true
   }
 
   export type FormMaxAggregateInputType = {
@@ -2543,6 +2547,7 @@ export namespace Prisma {
     updatedAt?: true
     authorId?: true
     latestVersion?: true
+    customUrl?: true
   }
 
   export type FormCountAggregateInputType = {
@@ -2551,6 +2556,7 @@ export namespace Prisma {
     updatedAt?: true
     authorId?: true
     latestVersion?: true
+    customUrl?: true
     _all?: true
   }
 
@@ -2646,6 +2652,7 @@ export namespace Prisma {
     updatedAt: Date
     authorId: string
     latestVersion: number
+    customUrl: string | null
     _count: FormCountAggregateOutputType | null
     _avg: FormAvgAggregateOutputType | null
     _sum: FormSumAggregateOutputType | null
@@ -2673,6 +2680,7 @@ export namespace Prisma {
     updatedAt?: boolean
     authorId?: boolean
     latestVersion?: boolean
+    customUrl?: boolean
     author?: boolean | UserDefaultArgs<ExtArgs>
     versions?: boolean | Form$versionsArgs<ExtArgs>
     submissions?: boolean | Form$submissionsArgs<ExtArgs>
@@ -2685,6 +2693,7 @@ export namespace Prisma {
     updatedAt?: boolean
     authorId?: boolean
     latestVersion?: boolean
+    customUrl?: boolean
     author?: boolean | UserDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["form"]>
 
@@ -2694,6 +2703,7 @@ export namespace Prisma {
     updatedAt?: boolean
     authorId?: boolean
     latestVersion?: boolean
+    customUrl?: boolean
     author?: boolean | UserDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["form"]>
 
@@ -2703,9 +2713,10 @@ export namespace Prisma {
     updatedAt?: boolean
     authorId?: boolean
     latestVersion?: boolean
+    customUrl?: boolean
   }
 
-  export type FormOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "createdAt" | "updatedAt" | "authorId" | "latestVersion", ExtArgs["result"]["form"]>
+  export type FormOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "createdAt" | "updatedAt" | "authorId" | "latestVersion" | "customUrl", ExtArgs["result"]["form"]>
   export type FormInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     author?: boolean | UserDefaultArgs<ExtArgs>
     versions?: boolean | Form$versionsArgs<ExtArgs>
@@ -2732,6 +2743,7 @@ export namespace Prisma {
       updatedAt: Date
       authorId: string
       latestVersion: number
+      customUrl: string | null
     }, ExtArgs["result"]["form"]>
     composites: {}
   }
@@ -3163,6 +3175,7 @@ export namespace Prisma {
     readonly updatedAt: FieldRef<"Form", 'DateTime'>
     readonly authorId: FieldRef<"Form", 'String'>
     readonly latestVersion: FieldRef<"Form", 'Int'>
+    readonly customUrl: FieldRef<"Form", 'String'>
   }
     
 
@@ -7092,7 +7105,8 @@ export namespace Prisma {
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
     authorId: 'authorId',
-    latestVersion: 'latestVersion'
+    latestVersion: 'latestVersion',
+    customUrl: 'customUrl'
   };
 
   export type FormScalarFieldEnum = (typeof FormScalarFieldEnum)[keyof typeof FormScalarFieldEnum]
@@ -7380,6 +7394,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFilter<"Form"> | Date | string
     authorId?: StringFilter<"Form"> | string
     latestVersion?: IntFilter<"Form"> | number
+    customUrl?: StringNullableFilter<"Form"> | string | null
     author?: XOR<UserScalarRelationFilter, UserWhereInput>
     versions?: FormVersionListRelationFilter
     submissions?: SubmissionListRelationFilter
@@ -7391,6 +7406,7 @@ export namespace Prisma {
     updatedAt?: SortOrder
     authorId?: SortOrder
     latestVersion?: SortOrder
+    customUrl?: SortOrderInput | SortOrder
     author?: UserOrderByWithRelationInput
     versions?: FormVersionOrderByRelationAggregateInput
     submissions?: SubmissionOrderByRelationAggregateInput
@@ -7398,6 +7414,7 @@ export namespace Prisma {
 
   export type FormWhereUniqueInput = Prisma.AtLeast<{
     id?: string
+    customUrl?: string
     AND?: FormWhereInput | FormWhereInput[]
     OR?: FormWhereInput[]
     NOT?: FormWhereInput | FormWhereInput[]
@@ -7408,7 +7425,7 @@ export namespace Prisma {
     author?: XOR<UserScalarRelationFilter, UserWhereInput>
     versions?: FormVersionListRelationFilter
     submissions?: SubmissionListRelationFilter
-  }, "id">
+  }, "id" | "customUrl">
 
   export type FormOrderByWithAggregationInput = {
     id?: SortOrder
@@ -7416,6 +7433,7 @@ export namespace Prisma {
     updatedAt?: SortOrder
     authorId?: SortOrder
     latestVersion?: SortOrder
+    customUrl?: SortOrderInput | SortOrder
     _count?: FormCountOrderByAggregateInput
     _avg?: FormAvgOrderByAggregateInput
     _max?: FormMaxOrderByAggregateInput
@@ -7432,6 +7450,7 @@ export namespace Prisma {
     updatedAt?: DateTimeWithAggregatesFilter<"Form"> | Date | string
     authorId?: StringWithAggregatesFilter<"Form"> | string
     latestVersion?: IntWithAggregatesFilter<"Form"> | number
+    customUrl?: StringNullableWithAggregatesFilter<"Form"> | string | null
   }
 
   export type FormVersionWhereInput = {
@@ -7760,6 +7779,7 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     latestVersion?: number
+    customUrl?: string | null
     author: UserCreateNestedOneWithoutFormsInput
     versions?: FormVersionCreateNestedManyWithoutFormInput
     submissions?: SubmissionCreateNestedManyWithoutFormInput
@@ -7771,6 +7791,7 @@ export namespace Prisma {
     updatedAt?: Date | string
     authorId: string
     latestVersion?: number
+    customUrl?: string | null
     versions?: FormVersionUncheckedCreateNestedManyWithoutFormInput
     submissions?: SubmissionUncheckedCreateNestedManyWithoutFormInput
   }
@@ -7780,6 +7801,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     latestVersion?: IntFieldUpdateOperationsInput | number
+    customUrl?: NullableStringFieldUpdateOperationsInput | string | null
     author?: UserUpdateOneRequiredWithoutFormsNestedInput
     versions?: FormVersionUpdateManyWithoutFormNestedInput
     submissions?: SubmissionUpdateManyWithoutFormNestedInput
@@ -7791,6 +7813,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     authorId?: StringFieldUpdateOperationsInput | string
     latestVersion?: IntFieldUpdateOperationsInput | number
+    customUrl?: NullableStringFieldUpdateOperationsInput | string | null
     versions?: FormVersionUncheckedUpdateManyWithoutFormNestedInput
     submissions?: SubmissionUncheckedUpdateManyWithoutFormNestedInput
   }
@@ -7801,6 +7824,7 @@ export namespace Prisma {
     updatedAt?: Date | string
     authorId: string
     latestVersion?: number
+    customUrl?: string | null
   }
 
   export type FormUpdateManyMutationInput = {
@@ -7808,6 +7832,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     latestVersion?: IntFieldUpdateOperationsInput | number
+    customUrl?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type FormUncheckedUpdateManyInput = {
@@ -7816,6 +7841,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     authorId?: StringFieldUpdateOperationsInput | string
     latestVersion?: IntFieldUpdateOperationsInput | number
+    customUrl?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type FormVersionCreateInput = {
@@ -8283,6 +8309,7 @@ export namespace Prisma {
     updatedAt?: SortOrder
     authorId?: SortOrder
     latestVersion?: SortOrder
+    customUrl?: SortOrder
   }
 
   export type FormAvgOrderByAggregateInput = {
@@ -8295,6 +8322,7 @@ export namespace Prisma {
     updatedAt?: SortOrder
     authorId?: SortOrder
     latestVersion?: SortOrder
+    customUrl?: SortOrder
   }
 
   export type FormMinOrderByAggregateInput = {
@@ -8303,6 +8331,7 @@ export namespace Prisma {
     updatedAt?: SortOrder
     authorId?: SortOrder
     latestVersion?: SortOrder
+    customUrl?: SortOrder
   }
 
   export type FormSumOrderByAggregateInput = {
@@ -9202,6 +9231,7 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     latestVersion?: number
+    customUrl?: string | null
     versions?: FormVersionCreateNestedManyWithoutFormInput
     submissions?: SubmissionCreateNestedManyWithoutFormInput
   }
@@ -9211,6 +9241,7 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     latestVersion?: number
+    customUrl?: string | null
     versions?: FormVersionUncheckedCreateNestedManyWithoutFormInput
     submissions?: SubmissionUncheckedCreateNestedManyWithoutFormInput
   }
@@ -9250,6 +9281,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFilter<"Form"> | Date | string
     authorId?: StringFilter<"Form"> | string
     latestVersion?: IntFilter<"Form"> | number
+    customUrl?: StringNullableFilter<"Form"> | string | null
   }
 
   export type UserCreateWithoutFormsInput = {
@@ -9452,6 +9484,7 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     latestVersion?: number
+    customUrl?: string | null
     author: UserCreateNestedOneWithoutFormsInput
     submissions?: SubmissionCreateNestedManyWithoutFormInput
   }
@@ -9462,6 +9495,7 @@ export namespace Prisma {
     updatedAt?: Date | string
     authorId: string
     latestVersion?: number
+    customUrl?: string | null
     submissions?: SubmissionUncheckedCreateNestedManyWithoutFormInput
   }
 
@@ -9541,6 +9575,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     latestVersion?: IntFieldUpdateOperationsInput | number
+    customUrl?: NullableStringFieldUpdateOperationsInput | string | null
     author?: UserUpdateOneRequiredWithoutFormsNestedInput
     submissions?: SubmissionUpdateManyWithoutFormNestedInput
   }
@@ -9551,6 +9586,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     authorId?: StringFieldUpdateOperationsInput | string
     latestVersion?: IntFieldUpdateOperationsInput | number
+    customUrl?: NullableStringFieldUpdateOperationsInput | string | null
     submissions?: SubmissionUncheckedUpdateManyWithoutFormNestedInput
   }
 
@@ -9690,6 +9726,7 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     latestVersion?: number
+    customUrl?: string | null
     author: UserCreateNestedOneWithoutFormsInput
     versions?: FormVersionCreateNestedManyWithoutFormInput
   }
@@ -9700,6 +9737,7 @@ export namespace Prisma {
     updatedAt?: Date | string
     authorId: string
     latestVersion?: number
+    customUrl?: string | null
     versions?: FormVersionUncheckedCreateNestedManyWithoutFormInput
   }
 
@@ -9763,6 +9801,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     latestVersion?: IntFieldUpdateOperationsInput | number
+    customUrl?: NullableStringFieldUpdateOperationsInput | string | null
     author?: UserUpdateOneRequiredWithoutFormsNestedInput
     versions?: FormVersionUpdateManyWithoutFormNestedInput
   }
@@ -9773,6 +9812,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     authorId?: StringFieldUpdateOperationsInput | string
     latestVersion?: IntFieldUpdateOperationsInput | number
+    customUrl?: NullableStringFieldUpdateOperationsInput | string | null
     versions?: FormVersionUncheckedUpdateManyWithoutFormNestedInput
   }
 
@@ -9826,6 +9866,7 @@ export namespace Prisma {
     createdAt?: Date | string
     updatedAt?: Date | string
     latestVersion?: number
+    customUrl?: string | null
   }
 
   export type FormUpdateWithoutAuthorInput = {
@@ -9833,6 +9874,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     latestVersion?: IntFieldUpdateOperationsInput | number
+    customUrl?: NullableStringFieldUpdateOperationsInput | string | null
     versions?: FormVersionUpdateManyWithoutFormNestedInput
     submissions?: SubmissionUpdateManyWithoutFormNestedInput
   }
@@ -9842,6 +9884,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     latestVersion?: IntFieldUpdateOperationsInput | number
+    customUrl?: NullableStringFieldUpdateOperationsInput | string | null
     versions?: FormVersionUncheckedUpdateManyWithoutFormNestedInput
     submissions?: SubmissionUncheckedUpdateManyWithoutFormNestedInput
   }
@@ -9851,6 +9894,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     latestVersion?: IntFieldUpdateOperationsInput | number
+    customUrl?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type FormVersionCreateManyFormInput = {

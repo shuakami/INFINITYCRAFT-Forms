@@ -2,21 +2,53 @@ import prisma from '../../database/prisma';
 import { AppError } from '../../middleware/errorHandler';
 import { CreateFormInput, UpdateFormInput } from './form.schema';
 
+function sanitizeFormVersionForPublicView(formVersion: any) {
+    if (!formVersion) return null;
+
+    const {
+        emailNotification,
+        aiEnabled,
+        aiPrompt,
+        aiResponseSchema,
+        aiLanguage,
+        blocks,
+        ...rest
+    } = formVersion;
+
+    const sanitizedBlocks = (blocks as any[]).map(block => {
+        const { aiNote, ...properties } = block.properties;
+        return { ...block, properties };
+    });
+
+    return { ...rest, blocks: sanitizedBlocks };
+}
+
+
 /**
  * Creates a new form and its initial version (v1).
  * @param authorId - The ID of the user creating the form.
  * @returns The newly created form with its first version.
  */
 export async function createForm(authorId: string, data: CreateFormInput) {
+  const { customUrl, ...versionData } = data;
+
+  if (customUrl) {
+    const existing = await prisma.form.findUnique({ where: { customUrl } });
+    if (existing) {
+      throw new AppError('This custom URL is already taken.', 409);
+    }
+  }
+
   const form = await prisma.form.create({
     data: {
       authorId,
+      customUrl: customUrl,
       versions: {
         create: {
           version: 1,
-          title: data.title,
-          description: data.description,
-          blocks: (data.blocks as any) || [],
+          title: versionData.title,
+          description: versionData.description,
+          blocks: (versionData.blocks as any) || [],
           published: false,
         },
       },
@@ -57,22 +89,41 @@ export async function getFormsByUserId(authorId: string) {
   }));
 }
 
+async function findFormByIdentifier(identifier: string) {
+    return prisma.form.findFirst({
+        where: {
+            OR: [
+                { id: identifier },
+                { customUrl: identifier }
+            ]
+        }
+    });
+}
+
+
 /**
- * Retrieves a specific version of a form.
+ * Retrieves a specific version of a form by its ID or custom URL.
  * If no version is specified, it retrieves the latest version.
  * Ensures that only the author can access unpublished versions.
- * @param formId - The ID of the form.
+ * @param identifier - The ID or custom URL of the form.
  * @param userId - The ID of the user requesting the form (for auth check).
  * @param version - The specific version number to retrieve (optional).
  * @returns The requested form version, or null if not found or not accessible.
  */
-export async function getFormVersion(formId: string, userId?: string, version?: number) {
+export async function getFormVersion(identifier: string, userId?: string, version?: number) {
     try {
-        const form = await prisma.form.findUnique({
-            where: { id: formId },
+        const form = await prisma.form.findFirst({
+            where: {
+                OR: [
+                    { id: identifier },
+                    { customUrl: identifier }
+                ]
+            },
             select: { 
+                id: true,
                 authorId: true,
                 latestVersion: true,
+                customUrl: true, // FIX: Ensure customUrl is fetched
                 versions: {
                     where: version ? { version } : undefined,
                     orderBy: { version: 'desc' },
@@ -89,10 +140,17 @@ export async function getFormVersion(formId: string, userId?: string, version?: 
         }
 
         const formVersion = form.versions[0];
+        
+        const responsePayload = { 
+            ...formVersion, 
+            authorId: form.authorId, 
+            latestVersion: form.latestVersion, 
+            customUrl: form.customUrl // FIX: Add customUrl to the response payload
+        };
 
         // Author can always access their own form versions
         if (userId && form.authorId === userId) {
-            return { ...formVersion, authorId: form.authorId, latestVersion: form.latestVersion };
+            return responsePayload;
         }
 
         // Others can only access published versions
@@ -100,11 +158,11 @@ export async function getFormVersion(formId: string, userId?: string, version?: 
             return null;
         }
 
-        return { ...formVersion, authorId: form.authorId, latestVersion: form.latestVersion };
+        const sanitizedVersion = sanitizeFormVersionForPublicView(responsePayload);
+
+        return sanitizedVersion; // Sanitized version already includes customUrl etc.
     } catch (error) {
         console.error("Error in getFormVersion:", error);
-        // We throw a generic error to be caught by the global error handler.
-        // This prevents leaking database-specific error details to the client.
         throw new AppError('An unexpected error occurred while retrieving the form version.', 500);
     }
 }
@@ -113,59 +171,62 @@ export async function getFormVersion(formId: string, userId?: string, version?: 
 /**
  * Creates a new version of a form with updated content.
  * This is the primary "update" method for a form's structure and settings.
- * @param formId - The ID of the form to update.
+ * @param identifier - The ID or custom URL of the form to update.
  * @param userId - The ID of the user performing the update.
  * @param data - The data for the new version.
  * @returns The newly created form version.
  */
-export async function createNewFormVersion(formId: string, userId: string, data: UpdateFormInput) {
-    // 1. Find the form and the LATEST version with its email settings
-    const form = await prisma.form.findUnique({
-        where: { id: formId },
-        include: {
-            versions: {
-                orderBy: { version: 'desc' },
-                take: 1,
-                include: {
-                    emailNotification: true,
-                }
-            }
-        }
-    });
+export async function createNewFormVersion(identifier: string, userId: string, data: UpdateFormInput) {
+    const { customUrl, ...versionData } = data;
+
+    const form = await findFormByIdentifier(identifier);
 
     if (!form || form.authorId !== userId) {
         throw new AppError('Form not found or you do not have permission to edit it', 404);
     }
+    
+    if (customUrl && customUrl !== form.customUrl) {
+        const existing = await prisma.form.findUnique({ where: { customUrl } });
+        if (existing && existing.id !== form.id) { // More robust check
+          throw new AppError('This custom URL is already taken.', 409);
+        }
+    }
 
-    const latestVersion = form.versions[0];
+    const latestVersion = await prisma.formVersion.findFirst({
+        where: { formId: form.id },
+        orderBy: { version: 'desc' },
+        include: { emailNotification: true }
+    });
+
+    if (!latestVersion) {
+        throw new AppError('Could not find any versions for this form.', 500);
+    }
+
     const newVersionNumber = form.latestVersion + 1;
+    const wasPublished = latestVersion.published;
 
-    // 2. Create the new version in a transaction
-    const [updatedForm, newVersion] = await prisma.$transaction([
+    const transactionOperations: any[] = [
         prisma.form.update({
-            where: { id: formId },
+            where: { id: form.id },
             data: { 
                 latestVersion: newVersionNumber,
+                customUrl: customUrl,
                 updatedAt: new Date(),
             },
         }),
         prisma.formVersion.create({
             data: {
-                formId,
+                formId: form.id,
                 version: newVersionNumber,
-                // Carry over settings from the previous version
-                title: data.title,
-                description: data.description,
-                blocks: (data.blocks as any) || [],
-                published: false, // New versions are always unpublished by default
-                submissionsPerIp: data.submissionsPerIp,
-                // Carry over AI settings from the LATEST version, but allow overrides from the payload
-                aiEnabled: data.aiEnabled ?? latestVersion.aiEnabled,
-                aiPrompt: data.aiPrompt ?? latestVersion.aiPrompt,
-                aiResponseSchema: (data.aiResponseSchema as any) ?? latestVersion.aiResponseSchema ?? undefined,
-                aiLanguage: data.aiLanguage ?? latestVersion.aiLanguage,
-                
-                // 3. If the latest version had an email notification, create one for the new version
+                title: versionData.title,
+                description: versionData.description,
+                blocks: (versionData.blocks as any) || [],
+                published: wasPublished, // Inherit published state from the previous version
+                submissionsPerIp: versionData.submissionsPerIp,
+                aiEnabled: versionData.aiEnabled ?? latestVersion.aiEnabled,
+                aiPrompt: versionData.aiPrompt ?? latestVersion.aiPrompt,
+                aiResponseSchema: (versionData.aiResponseSchema as any) ?? latestVersion.aiResponseSchema ?? undefined,
+                aiLanguage: versionData.aiLanguage ?? latestVersion.aiLanguage,
                 emailNotification: latestVersion.emailNotification ? {
                     create: {
                         recipients: latestVersion.emailNotification.recipients,
@@ -175,17 +236,31 @@ export async function createNewFormVersion(formId: string, userId: string, data:
                     }
                 } : undefined
             },
-            include: { // Include the notification in the return value
+            include: {
                 emailNotification: true,
             }
         })
-    ]);
+    ];
 
-    // Manually add authorId and latestVersion to the returned object for consistency
+    // If the last version was published, unpublish it as we are publishing the new one.
+    if (wasPublished) {
+        transactionOperations.push(
+            prisma.formVersion.update({
+                where: { id: latestVersion.id },
+                data: { published: false }
+            })
+        );
+    }
+    
+    const transactionResult = await prisma.$transaction(transactionOperations);
+    const updatedForm = transactionResult[0];
+    const newVersion = transactionResult[1];
+
     const result = {
         ...newVersion,
         authorId: form.authorId,
         latestVersion: updatedForm.latestVersion,
+        customUrl: updatedForm.customUrl // Ensure the response contains the updated customUrl
     };
 
     return result;
@@ -194,32 +269,30 @@ export async function createNewFormVersion(formId: string, userId: string, data:
 /**
  * Publishes a specific version of a form.
  * It also unpublishes any other version of the same form.
- * @param formId - The ID of the form.
+ * @param identifier - The ID or custom URL of the form.
  * @param userId - The ID of the user performing the action.
  * @param version - The version number to publish.
  */
-export async function publishFormVersion(formId: string, userId: string, version: number, publish: boolean) {
-    const form = await prisma.form.findUnique({
-        where: { id: formId },
-        select: { authorId: true }
-    });
+export async function publishFormVersion(identifier: string, userId: string, version: number, publish: boolean) {
+    const form = await findFormByIdentifier(identifier);
     
     if (!form || form.authorId !== userId) {
         throw new AppError('Form not found or you do not have permission to publish it', 404);
     }
 
     if (publish) {
-        // If publishing, ensure all other versions are unpublished
+        // IMPORTANT: This logic is now correct. It only unpublishes other versions *of the same form*.
+        // It does not affect other forms.
         const [_, updatedVersion] = await prisma.$transaction([
             prisma.formVersion.updateMany({
                 where: {
-                    formId: formId,
+                    formId: form.id,
                     NOT: { version: version },
                 },
                 data: { published: false },
             }),
             prisma.formVersion.update({
-                where: { formId_version: { formId, version } },
+                where: { formId_version: { formId: form.id, version } },
                 data: { published: true },
             })
         ]);
@@ -227,7 +300,7 @@ export async function publishFormVersion(formId: string, userId: string, version
     } else {
         // If unpublishing, just update the specific version
         const updatedVersion = await prisma.formVersion.update({
-            where: { formId_version: { formId, version } },
+            where: { formId_version: { formId: form.id, version } },
             data: { published: false },
         });
         return updatedVersion;
@@ -237,14 +310,11 @@ export async function publishFormVersion(formId: string, userId: string, version
 
 /**
  * Deletes a form and all its associated versions and submissions.
- * @param formId - The ID of the form to delete.
+ * @param identifier - The ID or custom URL of the form to delete.
  * @param userId - The ID of the user performing the deletion.
  */
-export async function deleteForm(formId: string, userId: string) {
-  const form = await prisma.form.findUnique({
-    where: { id: formId },
-    select: { authorId: true },
-  });
+export async function deleteForm(identifier: string, userId: string) {
+  const form = await findFormByIdentifier(identifier);
 
   if (!form || form.authorId !== userId) {
     throw new AppError('Form not found or you do not have permission to delete it', 404);
@@ -252,26 +322,23 @@ export async function deleteForm(formId: string, userId: string) {
 
   // With `onDelete: Cascade` in the schema, this single delete will automatically
   // remove all related FormVersion and Submission records.
-  await prisma.form.delete({ where: { id: formId } });
+  await prisma.form.delete({ where: { id: form.id } });
 }
 
 /**
  * Retrieves all versions of a single form.
- * @param formId - The ID of the form.
+ * @param identifier - The ID or custom URL of the form.
  * @param userId - The ID of the user performing the action (for authorization).
  */
-export async function getAllFormVersions(formId: string, userId: string) {
-    const form = await prisma.form.findUnique({
-        where: { id: formId },
-        select: { authorId: true },
-    });
+export async function getAllFormVersions(identifier: string, userId: string) {
+    const form = await findFormByIdentifier(identifier);
 
     if (!form || form.authorId !== userId) {
         throw new AppError('Form not found or you do not have permission to view its versions', 404);
     }
 
     return prisma.formVersion.findMany({
-        where: { formId },
+        where: { formId: form.id },
         orderBy: { version: 'desc' },
     });
 }

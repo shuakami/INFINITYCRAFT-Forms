@@ -18,7 +18,7 @@ interface EmailParams {
  * @param params.html - The HTML content of the email.
  * @param params.from - The sender's email address. Defaults to 'onboarding@resend.dev'.
  */
-export async function sendEmail({ to, subject, html, from = 'InfinityCraft Forms <noreply@email.sdjz.wiki>' }: EmailParams) {
+export async function sendEmail({ to, subject, html, from = 'INFINITYCRAFT Forms <report@no-reply.vaiiya.org>' }: EmailParams) {
   try {
     const { data, error } = await resend.emails.send({
       from: from,
@@ -28,7 +28,8 @@ export async function sendEmail({ to, subject, html, from = 'InfinityCraft Forms
     });
 
     if (error) {
-      throw new AppError(`Failed to send email: ${error.message}`, 500);
+      const errorMessage = error.message || JSON.stringify(error);
+      throw new AppError(`Failed to send email: ${errorMessage}`, 500);
     }
 
     console.log('Email sent successfully:', data);

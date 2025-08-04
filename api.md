@@ -1,6 +1,6 @@
-# InfinityCraft Forms - API 文档
+# INFINITYCRAFT Forms - API 文档
 
-本文档为 InfinityCraft Forms 后端提供了所有必要的 API 接口信息。
+本文档为 INFINITYCRAFT Forms 后端提供了所有必要的 API 接口信息。
 
 ## 基础信息
 

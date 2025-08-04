@@ -1,25 +1,18 @@
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { marked } from 'marked';
 import prisma from '../../database/prisma';
 import { AppError } from '../../middleware/errorHandler';
-import { sendEmail } from '../email/email.service'; // Import the email service
-import { JsonObject } from '@prisma/client/runtime/library';
+import { sendEmail } from '../email/email.service';
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: process.env.OPENAI_API_BASE_URL,
-});
+// Initialize the Google Generative AI client
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
 
-/**
- * Asynchronously analyzes a form submission using an AI model.
- * Fetches the specific form version to which the submission belongs.
- * @param submissionId - The ID of the submission to analyze.
- */
 const formatAnswer = (answer: any): string => {
     if (answer === 'N/A' || answer === null || answer === undefined) return 'N/A';
     if (Array.isArray(answer)) return answer.join(', ');
     if (typeof answer === 'object') {
         return Object.entries(answer)
-            .filter(([, value]) => value) // Filter out empty values
+            .filter(([, value]) => value)
             .map(([key, value]) => `${key}: ${value}`)
             .join(', ');
     }
@@ -32,13 +25,12 @@ export async function analyzeSubmission(submissionId: string) {
         include: {
             formVersion: {
                 include: {
-                    emailNotification: true, // Include email notification settings
+                    emailNotification: true,
                 },
             },
         },
     });
 
-    // AI analysis is skipped if the version it belongs to didn't have AI enabled.
     if (!submission || !submission.formVersion.aiEnabled) {
         console.log(`AI analysis skipped for submission ${submissionId}`);
         return;
@@ -53,10 +45,9 @@ export async function analyzeSubmission(submissionId: string) {
         const { formVersion, data: submissionData } = submission;
         const blocks = formVersion.blocks as any[];
         
-        // CONSTRUCT THE MASTER PROMPT
-        // 1. Reformat how each question block is presented to the AI
         const formattedBlocks = blocks
             .sort((a, b) => a.order - b.order)
+            .filter(block => block.type !== 'MARKDOWN_TEXT') // Exclude markdown blocks from analysis
             .map(block => {
                 const answerData = (submissionData as any)?.[block.id];
                 const answer = answerData?.value ?? 'N/A';
@@ -64,7 +55,6 @@ export async function analyzeSubmission(submissionId: string) {
                 const question = properties?.label || 'Unnamed Question';
                 const aiNote = properties?.aiNote || '';
 
-                // If aiNote exists, frame it as an absolute rule.
                 const rule = aiNote 
                     ? `ADMINISTRATOR RULE: This is the ONLY correct way to evaluate this answer. This rule OVERRIDES any of your internal knowledge. The rule is: "${aiNote}"` 
                     : '';
@@ -90,7 +80,6 @@ ${rule}
             ? `\nIMPORTANT: You absolutely MUST provide your entire response in ${formVersion.aiLanguage}. All fields in the JSON, including the 'reasoning', must be in ${formVersion.aiLanguage}.`
             : '';
 
-        // 2. Define the AI's persona and core instructions
         const systemPrompt = `You are a meticulous and holistic data analyst. Your task is to perform a two-stage analysis of a user's form submission.
 
 **Stage 1: Block-level Rule Application**
@@ -114,23 +103,27 @@ ${responseSchema}
 ${languageInstruction}
 `;
 
-        // Call the AI model
-        const model = process.env.OPENAI_MODEL_NAME || "gpt-4-turbo";
-        const response = await openai.chat.completions.create({
-            model: model,
-            messages: [{ role: "system", content: systemPrompt }],
-            temperature: 0.7,
-            response_format: { type: "json_object" },
-        });
+        console.log("----- AI Analysis Prompt -----");
+        console.log(systemPrompt);
+        console.log("------------------------------");
 
-        const analysisResult = response.choices[0].message.content;
+        const model = genAI.getGenerativeModel({ model: process.env.GOOGLE_MODEL_NAME || "gemini-2.5-flash"});
+        const result = await model.generateContent(systemPrompt);
+        const response = await result.response;
+        let analysisResult = response.text();
+        
         if (!analysisResult) {
             throw new Error('AI returned an empty response.');
         }
         
+        // Clean the response to remove markdown code block fences if they exist
+        const jsonMatch = analysisResult.match(/```json\s*([\s\S]*?)\s*```/);
+        if (jsonMatch && jsonMatch[1]) {
+            analysisResult = jsonMatch[1];
+        }
+        
         const parsedAnalysis = JSON.parse(analysisResult);
 
-        // Save the result
         await prisma.submission.update({
             where: { id: submissionId },
             data: {
@@ -141,22 +134,34 @@ ${languageInstruction}
 
         console.log(`AI analysis completed successfully for submission ${submissionId}`);
 
-        // 邮件通知处理
-if (formVersion.emailNotification) {
-    await handleEmailNotification(
-        formVersion.emailNotification,
-        parsedAnalysis,
-        submissionId
-    );
-}
+        if (formVersion.emailNotification) {
+            await handleEmailNotification(
+                formVersion.emailNotification,
+                parsedAnalysis,
+                submissionId
+            );
+        }
 
     } catch (error) {
         console.error(`AI analysis failed for submission ${submissionId}:`, error);
+        
+        let errorMessage = 'An unknown error occurred.';
+        if (error instanceof Error) {
+            errorMessage = error.message;
+            // Check for and log the underlying cause, which often has more specific details
+            if ((error as any).cause) {
+                console.error('Underlying cause:', (error as any).cause);
+                errorMessage += ` | Cause: ${JSON.stringify((error as any).cause)}`;
+            }
+        } else {
+            errorMessage = JSON.stringify(error);
+        }
+
         await prisma.submission.update({
             where: { id: submissionId },
             data: { 
                 aiAnalysisStatus: 'FAILED',
-                aiAnalysis: { error: (error as Error).message }
+                aiAnalysis: { error: errorMessage }
             },
         });
     }
@@ -178,17 +183,16 @@ ${JSON.stringify(analysis, null, 2)}
 Condition: ${conditionPrompt}`;
 
     try {
-        const model = process.env.OPENAI_MODEL_NAME || "gpt-4-turbo";
-        const response = await openai.chat.completions.create({
-            model: model,
-            messages: [{ role: "system", content: fullPrompt }],
-            temperature: 0.1,
-            max_tokens: 50, 
-        });
-        return response.choices[0].message.content?.trim() || '';
+        console.log("----- AI Condition Check Prompt -----");
+        console.log(fullPrompt);
+        console.log("-----------------------------------");
+        const model = genAI.getGenerativeModel({ model: process.env.GOOGLE_MODEL_NAME || "gemini-1.5-flash"});
+        const result = await model.generateContent(fullPrompt);
+        const response = await result.response;
+        return response.text().trim();
     } catch (error) {
         console.error('AI condition check failed:', error);
-        return ''; // Return empty on failure
+        return '';
     }
 }
 
@@ -223,12 +227,6 @@ async function handleEmailNotification(notification: EmailNotificationSettings, 
     }
 }
 
-/**
- * Generates an email subject using the AI model.
- * @param analysis - The AI analysis result.
- * @param prompt - A custom prompt for generating the subject.
- * @returns The generated email subject.
- */
 async function generateEmailSubject(analysis: any, prompt?: string | null): Promise<string> {
     const subjectPrompt = `Based on the following analysis, generate a concise and informative email subject.
     ${prompt ? `\nAdministrator's instruction: ${prompt}` : ''}
@@ -237,54 +235,51 @@ async function generateEmailSubject(analysis: any, prompt?: string | null): Prom
     Subject:`;
 
     try {
-        const model = process.env.OPENAI_MODEL_NAME || "gpt-4-turbo";
-        const response = await openai.chat.completions.create({
-            model: model,
-            messages: [{ role: "system", content: subjectPrompt }],
-            temperature: 0.5,
-            max_tokens: 20,
-        });
-
-        return response.choices[0].message.content?.trim() || 'Form Submission Analysis';
+        console.log("----- AI Subject Generation Prompt -----");
+        console.log(subjectPrompt);
+        console.log("--------------------------------------");
+        const model = genAI.getGenerativeModel({ model: process.env.GOOGLE_MODEL_NAME || "gemini-1.5-flash"});
+        const result = await model.generateContent(subjectPrompt);
+        const response = await result.response;
+        return response.text().trim() || 'Form Submission Analysis';
     } catch (error) {
         console.error('Failed to generate email subject:', error);
-        return 'Form Submission Analysis'; // Fallback subject
+        return 'Form Submission Analysis';
     }
 }
 
-/**
- * Generates the HTML body for the email notification.
- * @param analysis - The AI analysis result.
- * @param submissionId - The ID of the submission.
- * @returns The HTML email body.
- */
 function generateEmailBody(analysis: any, submissionId: string): string {
     const analysisHtml = Object.entries(analysis)
-        .map(([key, value]) => `
+        .map(([key, value]) => {
+            const formattedValue = (typeof value === 'string' && key === 'reasoning')
+                ? marked(value)
+                : `<p style="margin: 4px 0; padding: 8px; background-color: #f9f9f9; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word;">${
+                    typeof value === 'object' ? JSON.stringify(value, null, 2) : value
+                  }</p>`;
+
+            return `
             <div style="margin-bottom: 12px;">
                 <strong style="text-transform: capitalize;">${key.replace(/_/g, ' ')}:</strong>
-                <p style="margin: 4px 0; padding: 8px; background-color: #f9f9f9; border-radius: 4px;">
-                    ${typeof value === 'object' ? JSON.stringify(value, null, 2) : value}
-                </p>
+                <div style="margin-top: 4px;">${formattedValue}</div>
             </div>
-        `)
+        `})
         .join('');
 
     return `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-            <h2 style="color: #333;">AI Analysis Complete for Submission</h2>
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol'; line-height: 1.6; color: #333;">
+            <h2 style="color: #111;">AI Analysis Complete</h2>
             <p>A new form submission has been analyzed. Here are the details:</p>
-            <div style="padding: 16px; border: 1px solid #ddd; border-radius: 8px; background-color: #ffffff;">
+            <div style="padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
                 ${analysisHtml}
             </div>
-            <p>
-                You can view the full submission details here:
-                <a href="${process.env.FRONTEND_URL}/submission/${submissionId}" style="color: #007bff; text-decoration: none;">
-                    View Submission
+            <p style="margin-top: 20px;">
+                You can view the full submission details, including user answers, on the platform:
+                <a href="${process.env.FRONTEND_URL}/results/${submissionId}" style="color: #007bff; text-decoration: none; font-weight: bold;">
+                    View Full Submission
                 </a>
             </p>
-            <p style="font-size: 0.9em; color: #777;">
-                This is an automated notification from the InfinityCraft Forms system.
+            <p style="font-size: 0.9em; color: #777; margin-top: 24px; border-top: 1px solid #e0e0e0; padding-top: 16px;">
+                This is an automated notification from the INFINITYCRAFT Forms system.
             </p>
         </div>
     `;

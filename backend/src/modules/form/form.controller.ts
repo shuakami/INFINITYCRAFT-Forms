@@ -37,12 +37,12 @@ export async function getMyFormsHandler(req: Request, res: Response, next: NextF
 }
 
 export async function getFormVersionHandler(
-    req: Request<{ formId: string }, {}, {}, { version?: string }>,
+    req: Request<{ identifier: string }, {}, {}, { version?: string }>,
     res: Response,
     next: NextFunction
 ) {
     try {
-        const { formId } = req.params;
+        const { identifier } = req.params;
         const version = req.query.version ? parseInt(req.query.version, 10) : undefined;
         // User can be undefined here because of optionalProtect
         const userId = req.user?.id; 
@@ -51,7 +51,7 @@ export async function getFormVersionHandler(
             return next(new AppError('Invalid version number', 400));
         }
 
-        const formVersion = await formService.getFormVersion(formId, userId, version);
+        const formVersion = await formService.getFormVersion(identifier, userId, version);
         
         if (!formVersion) {
             return next(new AppError('Form version not found or not accessible', 404));
@@ -63,14 +63,14 @@ export async function getFormVersionHandler(
 }
 
 export async function createNewFormVersionHandler(
-  req: Request<{ formId: string }, {}, UpdateFormInput>,
+  req: Request<{ identifier: string }, {}, UpdateFormInput>,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const { formId } = req.params;
+    const { identifier } = req.params;
     const userId = getUserId(req);
-    const newVersion = await formService.createNewFormVersion(formId, userId, req.body);
+    const newVersion = await formService.createNewFormVersion(identifier, userId, req.body);
     res.status(201).json({ status: 'success', data: newVersion });
   } catch (err) {
     next(err);
@@ -78,15 +78,15 @@ export async function createNewFormVersionHandler(
 }
 
 export async function publishFormVersionHandler(
-    req: Request<{ formId: string }, {}, PublishFormVersionInput>,
+    req: Request<{ identifier: string }, {}, PublishFormVersionInput>,
     res: Response,
     next: NextFunction
 ) {
     try {
-        const { formId } = req.params;
+        const { identifier } = req.params;
         const { version, publish } = req.body;
         const userId = getUserId(req);
-        const publishedVersion = await formService.publishFormVersion(formId, userId, version, publish);
+        const publishedVersion = await formService.publishFormVersion(identifier, userId, version, publish);
         res.status(200).json({ status: 'success', data: publishedVersion });
     } catch (err) {
         next(err);
@@ -94,14 +94,14 @@ export async function publishFormVersionHandler(
 }
 
 export async function deleteFormHandler(
-  req: Request<{ formId: string }>,
+  req: Request<{ identifier: string }>,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const { formId } = req.params;
+    const { identifier } = req.params;
     const userId = getUserId(req);
-    await formService.deleteForm(formId, userId);
+    await formService.deleteForm(identifier, userId);
     res.status(204).send();
   } catch (err) {
     next(err);
@@ -109,14 +109,14 @@ export async function deleteFormHandler(
 }
 
 export async function getAllFormVersionsHandler(
-    req: Request<{ formId: string }>,
+    req: Request<{ identifier: string }>,
     res: Response,
     next: NextFunction
 ) {
     try {
-        const { formId } = req.params;
+        const { identifier } = req.params;
         const userId = getUserId(req);
-        const versions = await formService.getAllFormVersions(formId, userId);
+        const versions = await formService.getAllFormVersions(identifier, userId);
         res.status(200).json({ status: 'success', data: versions });
     } catch (err) {
         next(err);

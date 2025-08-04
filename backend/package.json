@@ -2,7 +2,7 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/api/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon src/api/index.ts",
@@ -23,12 +23,15 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "6.13.0",
+    "@types/marked": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
+    "marked": "^16.1.2",
     "openai": "^5.11.0",
     "prisma": "^6.13.0",
     "react-markdown": "^10.1.0",

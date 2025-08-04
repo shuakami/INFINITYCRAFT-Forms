@@ -1,20 +1,37 @@
 import prisma from '../../database/prisma';
 import { AppError } from '../../middleware/errorHandler';
 import { CreateSubmissionInput } from './submission.schema';
-import { analyzeSubmission } from '../ai/ai.service'; // This will also need updates
+import { analyzeSubmission } from '../ai/ai.service'; 
+
+async function findFormByIdentifier(identifier: string) {
+    return prisma.form.findFirst({
+        where: {
+            OR: [
+                { id: identifier },
+                { customUrl: identifier }
+            ]
+        }
+    });
+}
+
 
 /**
  * Creates a new submission for a specific, published form version.
- * @param formId - The ID of the parent form.
+ * @param identifier - The ID or custom URL of the parent form.
  * @param data - The submission data, where keys are block IDs.
  * @param ipAddress - The IP address of the submitter.
  * @returns The newly created submission.
  */
-export async function createSubmission(formId: string, data: CreateSubmissionInput, ipAddress?: string) {
+export async function createSubmission(identifier: string, data: CreateSubmissionInput, ipAddress?: string) {
+    const form = await findFormByIdentifier(identifier);
+    if (!form) {
+        throw new AppError('Form not found.', 404);
+    }
+    
     // Find the single published version of the form
     const formVersion = await prisma.formVersion.findFirst({
         where: { 
-            formId: formId,
+            formId: form.id,
             published: true,
         },
     });
@@ -27,8 +44,7 @@ export async function createSubmission(formId: string, data: CreateSubmissionInp
     if (formVersion.submissionsPerIp && ipAddress) {
         const submissionCount = await prisma.submission.count({
             where: {
-                // Check against the parent form to count all submissions from this IP
-                formId: formId, 
+                formId: form.id, 
                 ipAddress: ipAddress,
             },
         });
@@ -38,7 +54,6 @@ export async function createSubmission(formId: string, data: CreateSubmissionInp
         }
     }
 
-    // The blocks are now a JSON field on the formVersion
     const blocks = formVersion.blocks as any[];
     const blocksMap = new Map(blocks.map(block => [block.id, block]));
     const structuredData: { [key: string]: { label: string, value: any, type: string, properties: any } } = {};
@@ -59,17 +74,15 @@ export async function createSubmission(formId: string, data: CreateSubmissionInp
 
     const submission = await prisma.submission.create({
         data: {
-            formId: formId,
-            formVersionId: formVersion.id, // Link to the specific version
+            formId: form.id,
+            formVersionId: formVersion.id,
             data: structuredData,
             ipAddress,
             aiAnalysisStatus: formVersion.aiEnabled ? 'PENDING' : undefined,
         },
     });
 
-    // Trigger AI analysis if enabled for this version
     if (formVersion.aiEnabled) {
-        // We don't await this call, letting it run in the background.
         analyzeSubmission(submission.id).catch(console.error);
     }
 
@@ -78,16 +91,20 @@ export async function createSubmission(formId: string, data: CreateSubmissionInp
 
 /**
  * Retrieves submissions for a given form. Can be filtered by a specific version.
- * @param formId - The ID of the form.
+ * @param identifier - The ID or custom URL of the form.
  * @param version - The specific version number to filter by (optional).
  * @returns A list of submissions.
  */
-export async function getSubmissionsByFormId(formId: string, version?: number) {
-    console.log(`[Submission Service] Getting submissions for formId: ${formId}, version: ${version}`);
+export async function getSubmissionsByFormId(identifier: string, version?: number) {
+    const form = await findFormByIdentifier(identifier);
+    if (!form) {
+        throw new AppError('Form not found.', 404);
+    }
+
     try {
         const submissions = await prisma.submission.findMany({
             where: { 
-                formId,
+                formId: form.id,
                 ...(version && {
                     formVersion: {
                         version: version
@@ -99,11 +116,10 @@ export async function getSubmissionsByFormId(formId: string, version?: number) {
             },
             include: {
                 formVersion: {
-                    select: { version: true } // Include version number in the result
+                    select: { version: true } 
                 }
             }
         });
-        console.log(`[Submission Service] Found ${submissions.length} submissions.`);
         return submissions;
     } catch (error) {
         console.error("[Submission Service] Error during prisma.submission.findMany:", error);

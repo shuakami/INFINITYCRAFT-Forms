@@ -1,5 +1,7 @@
 import prisma from '../../database/prisma';
 import { AppError } from '../../middleware/errorHandler';
+import { getSubmissionsByFormId } from '../submission/submission.service';
+
 
 // Interfaces for analysis results remain mostly the same
 interface ChoiceResult {
@@ -27,31 +29,29 @@ export interface AnalysisResults {
   };
 }
 
+async function findFormByIdentifier(identifier: string) {
+    return prisma.form.findFirst({
+        where: { OR: [{ id: identifier }, { customUrl: identifier }] },
+        include: {
+            versions: { orderBy: { version: 'asc' } },
+        }
+    });
+}
+
 /**
  * Analyzes submissions for a form, optionally filtered by a specific version.
- * @param formId The ID of the form to analyze.
+ * @param identifier The ID or custom URL of the form to analyze.
  * @param version - The specific version number to analyze (optional). If not provided, analyzes all versions.
  * @returns An object containing aggregated analysis results.
  */
-export async function analyzeSubmissions(formId: string, version?: number): Promise<AnalysisResults> {
-  const form = await prisma.form.findUnique({
-    where: { id: formId },
-    include: {
-      versions: {
-        where: version ? { version } : undefined,
-        orderBy: { version: 'asc' },
-      },
-      submissions: {
-        where: version ? { formVersion: { version } } : undefined,
-      },
-    },
-  });
+export async function analyzeSubmissions(identifier: string, version?: number): Promise<AnalysisResults> {
+  const form = await findFormByIdentifier(identifier);
 
   if (!form || form.versions.length === 0) {
     throw new AppError('Form or specified version not found', 404);
   }
 
-  const { submissions } = form;
+  const submissions = await getSubmissionsByFormId(identifier, version);
   const totalSubmissions = submissions.length;
   const resultsByBlock: AnalysisResults['resultsByBlock'] = {};
 
@@ -61,7 +61,8 @@ export async function analyzeSubmissions(formId: string, version?: number): Prom
   
   if (version) {
     // Single version analysis
-    const singleVersion = form.versions[0];
+    const singleVersion = form.versions.find(v => v.version === version);
+    if (!singleVersion) throw new AppError(`Version ${version} not found for this form.`, 404);
     blocksToAnalyze = singleVersion.blocks as any[];
     formTitle = singleVersion.title;
   } else {
@@ -99,18 +100,22 @@ export async function analyzeSubmissions(formId: string, version?: number): Prom
         let totalChoices = 0;
         answers.forEach(answer => {
             if (Array.isArray(answer)) { // Multiple choice
-                totalChoices += answer.length;
-                answer.forEach(choice => { if (choiceResult[choice]) choiceResult[choice].count++; });
+                answer.forEach(choice => { 
+                    if (choiceResult[choice]) {
+                        choiceResult[choice].count++;
+                        totalChoices++;
+                    }
+                });
             } else { // Single choice
                 if (answer && choiceResult[answer]) {
-                    totalChoices++;
                     choiceResult[answer].count++;
+                    totalChoices++;
                 }
             }
         });
         
         options.forEach((opt: string) => {
-            if (totalChoices > 0) choiceResult[opt].percentage = parseFloat(((choiceResult[opt].count / totalChoices) * 100).toFixed(2));
+            if (totalChoices > 0) choiceResult[opt].percentage = parseFloat(((choiceResult[opt].count / totalSubmissions) * 100).toFixed(2));
         });
 
         resultsByBlock[block.id].result = choiceResult;

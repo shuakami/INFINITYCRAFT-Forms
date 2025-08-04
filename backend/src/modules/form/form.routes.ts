@@ -14,7 +14,7 @@ import {
   createFormSchema,
   createNewFormVersionSchema,
   publishFormVersionSchema,
-  formIdParamsSchema,
+  formIdentifierParamsSchema,
   getFormVersionQuerySchema
 } from './form.schema';
 import { getAnalysisHandler } from '../analysis/analysis.controller';
@@ -26,9 +26,9 @@ const router = express.Router();
 // This route is defined before `protect` is used, so it's not affected by it.
 // It uses `optionalProtect` to handle both authenticated and unauthenticated users.
 router.get(
-    '/:formId',
+    '/:identifier',
     validate(getFormVersionQuerySchema),
-    validate(formIdParamsSchema),
+    validate(formIdentifierParamsSchema),
     optionalProtect,
     getFormVersionHandler
 );
@@ -41,34 +41,34 @@ router.route('/')
   .post(validate(createFormSchema), createFormHandler)
   .get(getMyFormsHandler);
 
-// The generic '/:formId' GET is already defined above, so we only need DELETE here.
+// The generic '/:identifier' GET is already defined above, so we only need DELETE here.
 router.delete(
-    '/:formId',
-    validate(formIdParamsSchema),
+    '/:identifier',
+    validate(formIdentifierParamsSchema),
     deleteFormHandler
 );
 
 // --- Version-level protected routes ---
 router.get(
-    '/:formId/versions',
-    validate(formIdParamsSchema),
+    '/:identifier/versions',
+    validate(formIdentifierParamsSchema),
     getAllFormVersionsHandler
 );
   
 router.post(
-  '/:formId/versions',
+  '/:identifier/versions',
   validate(createNewFormVersionSchema),
   createNewFormVersionHandler
 );
 
 router.post(
-  '/:formId/publish',
+  '/:identifier/publish',
   validate(publishFormVersionSchema),
   publishFormVersionHandler
 );
 
 // --- Nested Routes (also protected) ---
-router.use('/:formId/submissions', submissionRouter); 
-router.get('/:formId/results', validate(formIdParamsSchema), getAnalysisHandler);
+router.use('/:identifier/submissions', submissionRouter); 
+router.get('/:identifier/results', validate(formIdentifierParamsSchema), getAnalysisHandler);
 
 export default router;

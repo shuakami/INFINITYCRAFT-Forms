@@ -135,7 +135,8 @@ exports.Prisma.FormScalarFieldEnum = {
   createdAt: 'createdAt',
   updatedAt: 'updatedAt',
   authorId: 'authorId',
-  latestVersion: 'latestVersion'
+  latestVersion: 'latestVersion',
+  customUrl: 'customUrl'
 };
 
 exports.Prisma.FormVersionScalarFieldEnum = {

@@ -1,4 +1,4 @@
-# InfinityCraft Forms - 后端开发任务清单
+# INFINITYCRAFT Forms - 后端开发任务清单
 
 这是一个用于构建问卷和投票应用的 Node.js 后端服务的任务清单。
 

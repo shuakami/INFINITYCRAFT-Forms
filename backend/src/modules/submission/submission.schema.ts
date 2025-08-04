@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const createSubmissionSchema = z.object({
   params: z.object({
-    formId: z.string().cuid({ message: 'Invalid form ID' }),
+    identifier: z.string(),
   }),
   body: z.object({
     // The 'data' field is a flexible JSON object where keys are block IDs
@@ -12,7 +12,7 @@ export const createSubmissionSchema = z.object({
 
 export const getSubmissionsSchema = z.object({
     params: z.object({
-        formId: z.string().cuid({ message: 'Invalid form ID' }),
+        identifier: z.string(),
     }),
     query: z.object({
         // The version comes in as a string, so we parse it to a number.
