@@ -1,5 +1,4 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { marked } from 'marked';
 import prisma from '../../database/prisma';
 import { AppError } from '../../middleware/errorHandler';
 import { sendEmail } from '../email/email.service';
@@ -107,7 +106,7 @@ ${languageInstruction}
         console.log(systemPrompt);
         console.log("------------------------------");
 
-        const model = genAI.getGenerativeModel({ model: process.env.GOOGLE_MODEL_NAME || "gemini-2.5-flash"});
+        const model = genAI.getGenerativeModel({ model: process.env.GOOGLE_MODEL_NAME || "gemini-1.5-flash"});
         const result = await model.generateContent(systemPrompt);
         const response = await result.response;
         let analysisResult = response.text();
@@ -213,7 +212,7 @@ async function handleEmailNotification(notification: EmailNotificationSettings, 
     if (shouldSendEmail) {
         try {
             const emailSubject = await generateEmailSubject(analysis, notification.prompt);
-            const emailBody = generateEmailBody(analysis, submissionId);
+            const emailBody = await generateEmailBody(analysis, submissionId);
 
             await sendEmail({
                 to: notification.recipients,
@@ -248,9 +247,10 @@ async function generateEmailSubject(analysis: any, prompt?: string | null): Prom
     }
 }
 
-function generateEmailBody(analysis: any, submissionId: string): string {
-    const analysisHtml = Object.entries(analysis)
-        .map(([key, value]) => {
+async function generateEmailBody(analysis: any, submissionId: string): Promise<string> {
+    const { marked } = await import('marked');
+    const analysisHtml = await Promise.all(Object.entries(analysis)
+        .map(async ([key, value]) => {
             const formattedValue = (typeof value === 'string' && key === 'reasoning')
                 ? marked(value)
                 : `<p style="margin: 4px 0; padding: 8px; background-color: #f9f9f9; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word;">${
@@ -260,17 +260,17 @@ function generateEmailBody(analysis: any, submissionId: string): string {
             return `
             <div style="margin-bottom: 12px;">
                 <strong style="text-transform: capitalize;">${key.replace(/_/g, ' ')}:</strong>
-                <div style="margin-top: 4px;">${formattedValue}</div>
+                <div style="margin-top: 4px;">${await formattedValue}</div>
             </div>
         `})
-        .join('');
+    );
 
     return `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol'; line-height: 1.6; color: #333;">
             <h2 style="color: #111;">AI Analysis Complete</h2>
             <p>A new form submission has been analyzed. Here are the details:</p>
             <div style="padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
-                ${analysisHtml}
+                ${analysisHtml.join('')}
             </div>
             <p style="margin-top: 20px;">
                 You can view the full submission details, including user answers, on the platform:
