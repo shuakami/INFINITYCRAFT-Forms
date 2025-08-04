@@ -1,0 +1,10 @@
+{
+  "name": "infinitycraft-forms-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r --parallel dev"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}

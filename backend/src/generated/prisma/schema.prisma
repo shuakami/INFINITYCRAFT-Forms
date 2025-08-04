@@ -1,0 +1,111 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  forms     Form[]
+}
+
+model Form {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  author        User     @relation(fields: [authorId], references: [id])
+  authorId      String
+  latestVersion Int      @default(1)
+
+  versions    FormVersion[]
+  submissions Submission[] // Relation to all submissions for this form
+}
+
+model FormVersion {
+  id        String   @id @default(cuid())
+  version   Int
+  form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  formId    String
+  createdAt DateTime @default(now())
+
+  // Version-specific snapshots of form properties
+  title            String
+  description      String?
+  blocks           Json // Full snapshot of form blocks, questions, etc.
+  published        Boolean @default(false)
+  submissionsPerIp Int?
+
+  // AI Analysis Fields snapshot
+  aiEnabled        Boolean @default(false)
+  aiPrompt         String?
+  aiResponseSchema Json?
+  aiLanguage       String? // New field for specifying AI output language
+
+  // Email Notification Settings
+  emailNotification EmailNotification?
+
+  submissions Submission[]
+
+  @@unique([formId, version])
+  @@index([formId])
+}
+
+model EmailNotification {
+  id            String      @id @default(cuid())
+  formVersion   FormVersion @relation(fields: [formVersionId], references: [id], onDelete: Cascade)
+  formVersionId String      @unique
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  recipients             String[] // List of email addresses
+  prompt                 String? // Prompt for generating email content
+  // AI-based condition to trigger the email
+  conditionPrompt        String? // e.g., "Is the user's sentiment negative? Only answer 'yes' or 'no'."
+  conditionExpectedValue String? // e.g., "yes"
+}
+
+enum AIAnalysisStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Submission {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  form          Form        @relation(fields: [formId], references: [id], onDelete: Cascade)
+  formId        String
+  formVersion   FormVersion @relation(fields: [formVersionId], references: [id], onDelete: Cascade)
+  formVersionId String
+
+  data      Json
+  ipAddress String?
+
+  // AI Analysis Fields
+  aiAnalysis       Json?
+  aiAnalysisStatus AIAnalysisStatus?
+
+  @@index([formId])
+  @@index([formVersionId])
+}
