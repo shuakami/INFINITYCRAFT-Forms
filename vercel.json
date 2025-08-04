@@ -7,14 +7,14 @@
       "use": "@vercel/next"
     },
     {
-      "src": "backend/package.json",
+      "src": "backend/src/api/index.ts",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/backend/package.json"
+      "dest": "/backend/src/api/index.ts"
     },
     {
       "src": "/(.*)",
